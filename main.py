@@ -81,28 +81,64 @@ def kftest(df, column, label, tag):
 
     statics, p_value = chisquare(f_obs, f_exp, ddof=len(f_obs) - 2)
 
-    str1 = "%d(%f),%d(%f),%d(%f),%f" % (col[tag], col[tag] * 1. / sum(col.values()), 
+    str1 = "%d(%f),%d(%f),%d(%f),%f,%f" % (col[tag], col[tag] * 1. / sum(col.values()), 
             obs_d[0][tag],
             1. * obs_d[0][tag] / sum(obs_d[0].values()),
             obs_d[1][tag],
             1. * obs_d[1][tag] / sum(obs_d[1].values()),
+            statics,
             p_value)
     return str1
+
+def intvl(df, column, inv):
+    if len(inv) == 0:
+        return [column]
+    
+    mid_cols = []
+    for i in range(len(inv)):
+        if i == 0:
+            n_col = "%s<%f" %(column, inv[i])
+            df[n_col] = df[column].apply(lambda x: x < inv[i])
+            mid_cols.append(n_col)
+
+        else:
+            n_col = "%s<%f,%f>" % (column, inv[i-1], inv[i]) 
+            df[n_col] = df[column].apply(lambda x: 1. if x > inv[i-1] and x < inv[i] else 0.)
+            mid_cols.append(n_col)
+
+
+
+    n_col = "%s>%f" % (column, inv[-1])
+    df[n_col] = df[column].apply(lambda x: x > inv[i])
+    mid_cols.append(n_col)
+
+    return mid_cols
+
+
 
 def main():
 
     outfile = open("stats.csv", "w")
-    conf_dict = load_conf("zh.cfg")
+    conf_dict = load_conf("zht.cfg")
     data = load_csv("data.csv")
     df = pd.DataFrame(data)
 
     col = "ÐÔ±ðÄÐ1Å®2".decode("gbk").encode("utf8")
     for column in conf_dict:
-        if conf_dict[column]["func"] == "ttest":
-            str1 = ttest(df, column.decode("gbk").encode("utf8"), conf_dict[column]["label"])
-        elif conf_dict[column]["func"] == "kftest":
-            str1 = kftest(df, column.decode("gbk").encode("utf8"), conf_dict[column]["label"], float(conf_dict[column]["tag"]))
-        print >>outfile, "%s,%s" % (column, str1)
+        mid_cols = []
+        if conf_dict[column].get("pfunc", "") == "dumb":
+            invstr = conf_dict[column].get("intvl", "()")
+            exec("inv = %s" % invstr)
+            mid_cols = intvl(df, column.decode("gbk").encode("utf8"), inv)
+        else:
+            mid_cols = [column.decode("gbk").encode("utf8")]
+
+        for col in mid_cols:
+            if conf_dict[column]["func"] == "ttest":
+                str1 = ttest(df, col, conf_dict[column]["label"])
+            elif conf_dict[column]["func"] == "kftest":
+                str1 = kftest(df, col, conf_dict[column]["label"], float(conf_dict[column]["tag"]))
+            print >>outfile, "%s,%s" % (col, str1)
 
 
 if __name__ == "__main__":
